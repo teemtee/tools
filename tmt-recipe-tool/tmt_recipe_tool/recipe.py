@@ -1,0 +1,101 @@
+from collections.abc import Iterable
+from pathlib import Path
+from typing import Optional, cast
+
+import tmt
+from pydantic import ValidationError
+
+from tmt_recipe_tool.models import Result
+from tmt_recipe_tool.utils import create_tmt_logger, load_yaml
+
+
+class RecipeError(Exception):
+    """Raised when a recipe is invalid or cannot be processed."""
+
+
+def _load_recipe(path: Path) -> tmt.recipe.Recipe:
+    raw_recipe = tmt.utils.yaml_to_dict(path.read_text(encoding="utf-8", errors="replace"))
+    try:
+        return tmt.recipe.Recipe.from_spec(
+            cast(tmt.recipe._RawRecipe, raw_recipe), create_tmt_logger()
+        )
+    except Exception as exc:
+        raise RecipeError(f"Invalid recipe: '{path}'") from exc
+
+
+def _save_recipe(recipe: tmt.recipe.Recipe, path: Path) -> None:
+    path.write_text(tmt.utils.to_yaml(recipe.to_spec()), encoding="utf-8", errors="replace")
+
+
+def _resolve_results_path(
+    plan: tmt.recipe._RecipePlan,
+    input_path: Path,
+    run_workdir: Optional[Path] = None,
+) -> Path:
+    """Extract and resolve the results-path from a plan's execute step."""
+    if plan.execute.results_path is None:
+        raise RecipeError(f"Results file for plan '{plan.name}' not found.")
+
+    results_path = Path(plan.execute.results_path)
+    if results_path.exists():
+        return results_path
+
+    if run_workdir is not None:
+        results_path = run_workdir / results_path
+    else:
+        results_path = input_path.parent / results_path
+
+    if not results_path.exists():
+        raise RecipeError(f"Results file for plan '{plan.name}' not found: {results_path}")
+
+    return results_path
+
+
+def _load_results(results_path: Path, plan_name: str) -> list[Result]:
+    """Load and validate a results file."""
+    raw = load_yaml(results_path)
+    if not isinstance(raw, list):
+        raise RecipeError(
+            f"Results for plan '{plan_name}' must be a list, got {type(raw).__name__}."
+        )
+    try:
+        return [Result.model_validate(r) for r in raw]
+    except ValidationError as e:
+        raise RecipeError(f"Invalid result entry in plan '{plan_name}': {e}") from e
+
+
+def _filter_tests(
+    tests: list[tmt.recipe._RecipeTest],
+    results: list[Result],
+    filter_results: list[str],
+) -> Iterable[tmt.recipe._RecipeTest]:
+    """Return only the tests whose result outcome matches the filter."""
+    for test in tests:
+        for result in results:
+            if (
+                test.name == result.name
+                and test.serial_number == result.serial_number
+                and result.result in filter_results
+            ):
+                yield test
+                break
+
+
+def filter_recipe(
+    input_path: Path,
+    filter_results: list[str],
+    run_workdir: Optional[Path] = None,
+) -> tmt.recipe.Recipe:
+    """Load a recipe and keep only tests matching the specified result outcomes."""
+    recipe = _load_recipe(input_path)
+
+    filtered_plans = []
+    for plan in recipe.plans:
+        if plan.discover.tests:
+            results_path = _resolve_results_path(plan, input_path, run_workdir)
+            results = _load_results(results_path, plan.name)
+            plan.discover.tests = list(_filter_tests(plan.discover.tests, results, filter_results))
+        filtered_plans.append(plan)
+
+    recipe.plans = filtered_plans
+    return recipe

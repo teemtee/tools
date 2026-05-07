@@ -1,0 +1,132 @@
+import tempfile
+from pathlib import Path
+from typing import Any, Optional
+
+import click
+
+from tmt_recipe_tool.recipe import _save_recipe, filter_recipe
+from tmt_recipe_tool.utils import run_tmt_recipe
+
+DEFAULT_TEST_FILTER_RESULTS = ["fail", "error", "warn"]
+
+
+@click.group(invoke_without_command=False, no_args_is_help=True)
+@click.version_option(package_name="tmt-recipe-tool")
+@click.option(
+    "-i",
+    "--input",
+    metavar="PATH",
+    type=click.Path(exists=True, dir_okay=False, path_type=Path),
+    help="Path to the input recipe file.",
+    required=True,
+)
+@click.option(
+    "-o",
+    "--output",
+    metavar="PATH",
+    type=click.Path(dir_okay=False, writable=True, path_type=Path),
+    default=None,
+    help=(
+        "Path to the output recipe file. If not specified, the modified recipe will not be saved."
+    ),
+)
+@click.option(
+    "--run",
+    is_flag=True,
+    type=bool,
+    default=False,
+    help="Rerun the modified recipe with tmt.",
+)
+@click.option(
+    "--feeling-safe",
+    is_flag=True,
+    type=bool,
+    default=False,
+    help="Pass --feeling-safe to tmt, allowing execution of potentially unsafe operations.",
+)
+@click.option(
+    "--run-workdir",
+    metavar="PATH",
+    type=click.Path(exists=True, file_okay=False, path_type=Path),
+    default=None,
+    help=(
+        "Path to the tmt run workdir. Used as the base directory for resolving "
+        "relative results paths."
+    ),
+)
+@click.pass_context
+def main(
+    ctx: click.Context,
+    input: Path,  # noqa: A002
+    output: Optional[Path],
+    run: bool,
+    feeling_safe: bool,
+    run_workdir: Optional[Path],
+    **kwargs: Any,
+) -> None:
+    """tmt-recipe-tool - Filter and rerun tmt recipes based on test result outcomes."""
+    ctx.ensure_object(dict)
+
+
+@main.command()
+@click.option(
+    "--result",
+    "results",
+    metavar="RESULT",
+    multiple=True,
+    show_default=True,
+    default=DEFAULT_TEST_FILTER_RESULTS,
+    help=(
+        "Keep only the tests that have the specified result outcome. "
+        "Can be specified multiple times."
+    ),
+)
+@click.pass_context
+def filter_tests(ctx: click.Context, results: list[str], **kwargs: Any) -> None:
+    """Filter recipe tests by their result outcome."""
+    assert ctx.parent is not None
+
+    ctx.obj["recipe"] = filter_recipe(
+        ctx.parent.params["input"],
+        results,
+        run_workdir=ctx.parent.params.get("run_workdir"),
+    )
+
+
+@main.result_callback()
+@click.pass_context
+def post_action(ctx, *args, **kwargs):
+    """Save and optionally run the modified recipe after a subcommand completes."""
+    recipe = ctx.obj.get("recipe", None)
+    if not recipe:
+        return
+
+    empty_plans = [p.name for p in recipe.plans if not p.discover.tests]
+    if empty_plans:
+        click.echo(
+            f"Warning: No tests remaining after filtering in plan(s): {', '.join(empty_plans)}",
+            err=True,
+        )
+
+    output = ctx.params.get("output", None)
+    if output:
+        _save_recipe(recipe, output)
+        print(f"Modified recipe saved to: '{output}'")
+    else:
+        print("No output path provided, the modified recipe will not be saved.")
+
+    if ctx.params.get("run", False):
+        feeling_safe = ctx.params.get("feeling_safe", False)
+        if not output:
+            with tempfile.TemporaryDirectory(prefix="tmt_recipe_tool_") as tmp:
+                output = Path(tmp) / "recipe.yaml"
+                _save_recipe(recipe, output)
+                run_tmt_recipe(output, feeling_safe=feeling_safe)
+        else:
+            run_tmt_recipe(output, feeling_safe=feeling_safe)
+    elif len(empty_plans) == len(recipe.plans):
+        click.echo(
+            "Warning: None of the plans have any tests after filtering.",
+            err=True,
+        )
+        ctx.exit(3)

@@ -1,0 +1,68 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "tmt-recipe-tool"
+version = "0.1.0"
+description = "TODO"
+readme = "README.md"
+requires-python = ">=3.9"
+license = "MIT"
+dependencies = [
+    "click>=8.0.3",
+    "pydantic>=2.0",
+    "ruamel.yaml>=0.16.6",
+    "tmt>=1.72",
+]
+
+[project.scripts]
+tmt-recipe-tool = "tmt_recipe_tool.cli:main"
+
+[tool.ruff]
+line-length = 99
+src = ["tmt_recipe_tool"]
+target-version = "py39"
+
+[tool.ruff.lint]
+select = [
+    "F",      # pyflakes
+    "E",      # pycodestyle error
+    "W",      # pycodestyle warning
+    "I",      # isort
+    "N",      # pep8-naming
+    "UP",     # pyupgrade
+    "ASYNC",  # flake8-async
+    "S",      # flake8-bandit
+    "B",      # flake8-bugbear
+    "A",      # flake8-builtins
+    "C4",     # flake8-comprehensions
+    "T10",    # flake8-debugger
+    "ISC",    # flake8-implicit-str-concat
+    "ICN",    # flake8-import-conventions
+    "PIE",    # flake8-pie
+    "PT",     # flake8-pytest-style
+    "RSE",    # flake8-raise
+    "RET",    # flake8-return
+    "SIM",    # flake8-simplify
+    "TID",    # flake8-tidy-imports
+    "PGH",    # pygrep-hooks
+    "PLE",    # pylint-error
+    "PLR",    # pylint-refactor
+    "PERF",   # Perflint
+    "FURB",   # refurb
+    "RUF",    # ruff
+]
+ignore = [
+    "ISC001",   # conflicts with ruff formatter
+    "S101",     # use of `assert` detected
+    "PLR2004",  # magic value used in comparison
+    "PLR0913",  # Too many arguments in function definition
+]
+
+[dependency-groups]
+dev = [
+    "ruff",
+    "mypy",
+    "pre-commit",
+    ]
