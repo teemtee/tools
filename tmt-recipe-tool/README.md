@@ -2,7 +2,9 @@
 
 A command-line tool for filtering and rerunning [tmt](https://tmt.readthedocs.io/) tests based on result outcomes.
 
-Given a [tmt recipe](https://tmt.readthedocs.io/en/stable/spec/recipe.html) and its associated [test results](https://tmt.readthedocs.io/en/stable/spec/results.html), `tmt-recipe-tool` can produce a new recipe containing only the tests that matched specific outcomes (e.g. failed or errored tests), and optionally rerun them immediately.
+Given a [tmt recipe](https://tmt.readthedocs.io/en/stable/spec/recipe.html) and its associated test results, `tmt-recipe-tool` can produce a new recipe containing only the tests that matched specific outcomes (e.g. failed or errored tests), and optionally rerun them immediately.
+
+Results can be sourced either from a local tmt [results file](https://tmt.readthedocs.io/en/stable/spec/results.html) or from a [ReportPortal](https://reportportal.io/) instance when the recipe's report phase is configured with `how: reportportal`.
 
 ## Requirements
 
@@ -44,12 +46,29 @@ tmt-recipe-tool [OPTIONS] COMMAND [ARGS]...
 Filter recipe tests by their result outcome, keeping only those that match.
 
 ```
-tmt-recipe-tool -i RECIPE filter-tests [--result RESULT]...
+tmt-recipe-tool -i RECIPE filter-tests [--use-reportportal] [--result RESULT]...
 ```
 
 | Option | Default | Description |
 |--------|---------|-------------|
 | `--result RESULT` | `fail`, `error`, `warn` | Keep tests with this outcome (repeatable) |
+| `--use-reportportal` | `false` | Fetch test results from ReportPortal instead of a local results file |
+
+When `--use-reportportal` is used, results are fetched from any report phase in the recipe that has `how: reportportal`. The phase must include `launch-uuid` and `test-uuids` (populated automatically by the tmt [ReportPortal](https://tmt.readthedocs.io/en/stable/plugins/report/reportportal.html) plugin after a run finishes). The `launch-uuid` and `test-uuids` fields are stripped from the output recipe so that a subsequent run creates a new ReportPortal launch. Plans that do not have a `reportportal` report phase always fall back to their local `results.yaml` file, even when `--use-reportportal` is passed.
+
+Because ReportPortal only has three result statuses (`PASSED`, `FAILED`, `SKIPPED`), tmt outcomes are mapped before filtering:
+
+| tmt outcome | ReportPortal status |
+|-------------|---------------------|
+| `pass` | `PASSED` |
+| `fail` | `FAILED` |
+| `warn` | `FAILED` |
+| `error` | `FAILED` |
+| `info` | `SKIPPED` |
+| `skip` | `SKIPPED` |
+| `pending` | `SKIPPED` |
+
+As a result, `fail`, `warn`, and `error` are indistinguishable when filtering via ReportPortal, and all three will select tests with status `FAILED`. Similarly, `info`, `skip`, and `pending` will all select tests with status `SKIPPED`.
 
 ### Examples
 
@@ -81,4 +100,16 @@ Combine multiple result filters:
 
 ```bash
 tmt-recipe-tool -i recipe.yaml -o subset.yaml filter-tests --result fail --result error
+```
+
+Filter using ReportPortal results (requires the recipe to have a `reportportal` report phase with `launch-uuid` and `test-uuids`):
+
+```bash
+tmt-recipe-tool -i recipe.yaml -o filtered.yaml filter-tests --use-reportportal
+```
+
+Fetch failures from ReportPortal and rerun them immediately:
+
+```bash
+tmt-recipe-tool -i recipe.yaml --run filter-tests --use-reportportal --result fail
 ```
