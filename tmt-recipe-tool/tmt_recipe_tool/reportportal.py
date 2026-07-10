@@ -1,11 +1,12 @@
 from __future__ import annotations
 
 from collections.abc import Iterable
+from typing import Union, cast
 
 import requests  # type: ignore[import-untyped]
 from tmt.recipe import _RecipePlan, _RecipeTest
-from tmt.result import ResultOutcome
 from tmt.steps import _RawStepData
+from tmt.steps.report.reportportal import ReportReportPortal
 from tmt.utils import retry_session
 
 from tmt_recipe_tool.models import ReportPortalPhase, ReportPortalResult
@@ -20,13 +21,8 @@ STATUS_FORCELIST = (
 )
 
 TMT_TO_RP_RESULT_STATUS = {
-    ResultOutcome.PASS.value: "PASSED",
-    ResultOutcome.FAIL.value: "FAILED",
-    ResultOutcome.INFO.value: "SKIPPED",
-    ResultOutcome.WARN.value: "FAILED",
-    ResultOutcome.ERROR.value: "FAILED",
-    ResultOutcome.SKIP.value: "SKIPPED",
-    ResultOutcome.PENDING.value: "SKIPPED",
+    outcome.value: rp_status
+    for outcome, rp_status in ReportReportPortal.TMT_TO_RP_RESULT_STATUS.items()
 }
 
 
@@ -99,21 +95,26 @@ def _fetch_rp_results(
         response = session.get(
             f"{base_url}/api/{api_version}/{rp_phase.project}/item",
             headers=headers,
-            params={
-                "filter.eq.launchId": launch_id,
-                "filter.eq.type": "STEP",
-                "page.size": 100,
-                "page.page": page,
-            },
+            params=cast(
+                dict[str, Union[str, int]],
+                {
+                    "filter.eq.launchId": launch_id,
+                    "filter.eq.type": "STEP",
+                    "page.size": 100,
+                    "page.page": page,
+                },
+            ),
         )
         _handle_response(response)
         data = response.json()
-        results.extend(data.get("content", []))
+        results += [
+            ReportPortalResult.model_validate(result) for result in data.get("content", [])
+        ]
         page_info = data.get("page", {})
         if page >= page_info.get("totalPages", 1):
             break
         page += 1
-    return {result.uuid: ReportPortalResult.model_validate(result) for result in results}
+    return {result.uuid: result for result in results}
 
 
 def filter_tests_from_rp(

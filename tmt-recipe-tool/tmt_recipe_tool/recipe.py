@@ -96,6 +96,7 @@ def filter_recipe(
     filtered_plans = []
     for plan in recipe.plans:
         if not plan.discover.tests:
+            print(f"Plan '{plan.name}' does not contain any tests and will be skipped.")
             continue
         rp_phases = get_rp_phases(plan)
         if rp_phases and use_reportportal:
