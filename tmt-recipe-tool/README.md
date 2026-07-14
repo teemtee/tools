@@ -43,15 +43,16 @@ tmt-recipe-tool [OPTIONS] COMMAND [ARGS]...
 
 #### `filter-tests`
 
-Filter recipe tests by their result outcome, keeping only those that match.
+Filter recipe tests by their result outcome or name, keeping only those that match.
 
 ```
-tmt-recipe-tool -i RECIPE filter-tests [--use-reportportal] [--result RESULT]...
+tmt-recipe-tool -i RECIPE filter-tests [--use-reportportal] [--result RESULT]... [--name NAME]...
 ```
 
 | Option | Default | Description |
 |--------|---------|-------------|
 | `--result RESULT` | `fail`, `error`, `warn` | Keep tests with this outcome (repeatable) |
+| `--name NAME` | | Keep tests whose name matches this regex pattern (repeatable). Combined with `--result` using OR logic. Uses [search mode](https://tmt.readthedocs.io/en/stable/overview.html#regular-expressions) for matching. |
 | `--use-reportportal` | `false` | Fetch test results from ReportPortal instead of a local results file |
 
 When `--use-reportportal` is used, results are fetched from any report phase in the recipe that has `how: reportportal`. The phase must include `launch-uuid` and `test-uuids` (populated automatically by the tmt [ReportPortal](https://tmt.readthedocs.io/en/stable/plugins/report/reportportal.html) plugin after a run finishes). The `launch-uuid` and `test-uuids` fields are stripped from the output recipe so that a subsequent run creates a new ReportPortal launch. Plans that do not have a `reportportal` report phase always fall back to their local `results.yaml` file, even when `--use-reportportal` is passed.
@@ -112,4 +113,16 @@ Fetch failures from ReportPortal and rerun them immediately:
 
 ```bash
 tmt-recipe-tool -i recipe.yaml --run filter-tests --use-reportportal --result fail
+```
+
+Keep only tests whose name matches a regex pattern, regardless of their result:
+
+```bash
+tmt-recipe-tool -i recipe.yaml -o subset.yaml filter-tests --name '/smoke'
+```
+
+Keep only tests whose name matches a pattern or whose result is `fail`:
+
+```bash
+tmt-recipe-tool -i recipe.yaml -o subset.yaml filter-tests --result fail --name '/smoke'
 ```

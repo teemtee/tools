@@ -1,3 +1,4 @@
+import re
 from collections.abc import Iterable
 from pathlib import Path
 from typing import Optional, cast
@@ -71,9 +72,13 @@ def _filter_tests(
     tests: list[tmt.recipe._RecipeTest],
     results: list[Result],
     filter_results: list[str],
+    filter_names: list[str],
 ) -> Iterable[tmt.recipe._RecipeTest]:
-    """Return only the tests whose result outcome matches the filter."""
+    """Return only the tests whose result outcome or name matches the filter."""
     for test in tests:
+        if any(re.search(name, test.name) for name in filter_names):
+            yield test
+            continue
         for result in results:
             if (
                 test.name == result.name
@@ -87,10 +92,11 @@ def _filter_tests(
 def filter_recipe(
     input_path: Path,
     filter_results: list[str],
+    filter_names: list[str],
     run_workdir: Optional[Path] = None,
     use_reportportal: bool = False,
 ) -> tmt.recipe.Recipe:
-    """Load a recipe and keep only tests matching the specified result outcomes."""
+    """Load a recipe and keep only tests matching the specified result outcomes or names."""
     recipe = _load_recipe(input_path)
 
     filtered_plans = []
@@ -101,14 +107,16 @@ def filter_recipe(
         rp_phases = get_rp_phases(plan)
         if rp_phases and use_reportportal:
             plan.discover.tests = list(
-                filter_tests_from_rp(plan.discover.tests, rp_phases, filter_results)
+                filter_tests_from_rp(plan.discover.tests, rp_phases, filter_results, filter_names)
             )
             plan.report.phases = edit_rp_phases(plan.report.phases)
         else:
             results = _load_results(
                 _resolve_results_path(plan, input_path, run_workdir), plan.name
             )
-            plan.discover.tests = list(_filter_tests(plan.discover.tests, results, filter_results))
+            plan.discover.tests = list(
+                _filter_tests(plan.discover.tests, results, filter_results, filter_names)
+            )
         filtered_plans.append(plan)
 
     recipe.plans = filtered_plans

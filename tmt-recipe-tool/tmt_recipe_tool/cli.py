@@ -82,6 +82,16 @@ def main(
     ),
 )
 @click.option(
+    "--name",
+    "names",
+    metavar="NAME",
+    multiple=True,
+    default=(),
+    help=(
+        "Keep tests whose name matches the given regex pattern. Can be specified multiple times."
+    ),
+)
+@click.option(
     "--use-reportportal",
     is_flag=True,
     default=False,
@@ -89,14 +99,19 @@ def main(
 )
 @click.pass_context
 def filter_tests(
-    ctx: click.Context, results: list[str], use_reportportal: bool, **kwargs: Any
+    ctx: click.Context,
+    results: list[str],
+    names: list[str],
+    use_reportportal: bool,
+    **kwargs: Any,
 ) -> None:
-    """Filter recipe tests by their result outcome."""
+    """Filter recipe tests by their result outcome or name."""
     assert ctx.parent is not None
 
     ctx.obj["recipe"] = filter_recipe(
         ctx.parent.params["input"],
-        results,
+        filter_results=results,
+        filter_names=names,
         run_workdir=ctx.parent.params.get("run_workdir"),
         use_reportportal=use_reportportal,
     )

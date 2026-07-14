@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from collections.abc import Iterable
 from typing import Union, cast
 
@@ -121,6 +122,7 @@ def filter_tests_from_rp(
     tests: list[_RecipeTest],
     rp_phases: list[ReportPortalPhase],
     filter_results: list[str],
+    filter_names: list[str],
 ) -> Iterable[_RecipeTest]:
     """Filter the tests from the ReportPortal results"""
     filter_results = list(
@@ -128,6 +130,11 @@ def filter_tests_from_rp(
     )
 
     filtered_tests: dict[int, _RecipeTest] = {}
+
+    for test in tests:
+        if any(re.search(name, test.name) for name in filter_names):
+            filtered_tests[test.serial_number] = test
+            continue
 
     for phase in rp_phases:
         with retry_session(
