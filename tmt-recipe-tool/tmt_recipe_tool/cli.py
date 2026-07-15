@@ -81,8 +81,16 @@ def main(
         "Can be specified multiple times."
     ),
 )
+@click.option(
+    "--use-reportportal",
+    is_flag=True,
+    default=False,
+    help="Fetch test results from ReportPortal instead of a local results file.",
+)
 @click.pass_context
-def filter_tests(ctx: click.Context, results: list[str], **kwargs: Any) -> None:
+def filter_tests(
+    ctx: click.Context, results: list[str], use_reportportal: bool, **kwargs: Any
+) -> None:
     """Filter recipe tests by their result outcome."""
     assert ctx.parent is not None
 
@@ -90,6 +98,7 @@ def filter_tests(ctx: click.Context, results: list[str], **kwargs: Any) -> None:
         ctx.parent.params["input"],
         results,
         run_workdir=ctx.parent.params.get("run_workdir"),
+        use_reportportal=use_reportportal,
     )
 
 

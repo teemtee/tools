@@ -3,9 +3,12 @@ from pathlib import Path
 from typing import Optional, cast
 
 import tmt
+import tmt.recipe
+import tmt.utils
 from pydantic import ValidationError
 
 from tmt_recipe_tool.models import Result
+from tmt_recipe_tool.reportportal import edit_rp_phases, filter_tests_from_rp, get_rp_phases
 from tmt_recipe_tool.utils import create_tmt_logger, load_yaml
 
 
@@ -85,15 +88,26 @@ def filter_recipe(
     input_path: Path,
     filter_results: list[str],
     run_workdir: Optional[Path] = None,
+    use_reportportal: bool = False,
 ) -> tmt.recipe.Recipe:
     """Load a recipe and keep only tests matching the specified result outcomes."""
     recipe = _load_recipe(input_path)
 
     filtered_plans = []
     for plan in recipe.plans:
-        if plan.discover.tests:
-            results_path = _resolve_results_path(plan, input_path, run_workdir)
-            results = _load_results(results_path, plan.name)
+        if not plan.discover.tests:
+            print(f"Plan '{plan.name}' does not contain any tests and will be skipped.")
+            continue
+        rp_phases = get_rp_phases(plan)
+        if rp_phases and use_reportportal:
+            plan.discover.tests = list(
+                filter_tests_from_rp(plan.discover.tests, rp_phases, filter_results)
+            )
+            plan.report.phases = edit_rp_phases(plan.report.phases)
+        else:
+            results = _load_results(
+                _resolve_results_path(plan, input_path, run_workdir), plan.name
+            )
             plan.discover.tests = list(_filter_tests(plan.discover.tests, results, filter_results))
         filtered_plans.append(plan)
 

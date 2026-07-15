@@ -12,8 +12,9 @@ license = "MIT"
 dependencies = [
     "click>=8.0.3",
     "pydantic>=2.0",
+    "requests>=2.25.1",
     "ruamel.yaml>=0.16.6",
-    "tmt>=1.72",
+    "tmt>=1.76",
 ]
 
 [project.scripts]
@@ -58,6 +59,7 @@ ignore = [
     "S101",     # use of `assert` detected
     "PLR2004",  # magic value used in comparison
     "PLR0913",  # Too many arguments in function definition
+    "UP007",    # X | Y for type annotations
 ]
 
 [dependency-groups]
