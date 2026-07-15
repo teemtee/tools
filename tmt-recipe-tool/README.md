@@ -4,7 +4,7 @@ A command-line tool for filtering and rerunning [tmt](https://tmt.readthedocs.io
 
 Given a [tmt recipe](https://tmt.readthedocs.io/en/stable/spec/recipe.html) and its associated test results, `tmt-recipe-tool` can produce a new recipe containing only the tests that matched specific outcomes (e.g. failed or errored tests), and optionally rerun them immediately.
 
-Results can be sourced either from a local tmt [results file](https://tmt.readthedocs.io/en/stable/spec/results.html) or from a [ReportPortal](https://reportportal.io/) instance when the recipe's report phase is configured with `how: reportportal`.
+Results can be sourced either from a local tmt [results file](https://tmt.readthedocs.io/en/stable/spec/results.html) or from a [ReportPortal](https://tmt.readthedocs.io/en/stable/plugins/report.html#reportportal) instance when the recipe's report phase is configured with `how: reportportal`.
 
 ## Requirements
 
