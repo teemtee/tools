@@ -7,6 +7,7 @@ import tmt.recipe
 import tmt.utils
 from pydantic import ValidationError
 
+from tmt_recipe_tool.filtering import build_filter_data, matches_filter
 from tmt_recipe_tool.models import Result
 from tmt_recipe_tool.reportportal import edit_rp_phases, filter_tests_from_rp, get_rp_phases
 from tmt_recipe_tool.utils import create_tmt_logger, load_yaml
@@ -70,27 +71,33 @@ def _load_results(results_path: Path, plan_name: str) -> list[Result]:
 def _filter_tests(
     tests: list[tmt.recipe._RecipeTest],
     results: list[Result],
-    filter_results: list[str],
+    filter: str,  # noqa: A002
 ) -> Iterable[tmt.recipe._RecipeTest]:
-    """Return only the tests whose result outcome matches the filter."""
+    """
+    Yield tests whose local result matches the fmf filter expression.
+    """
     for test in tests:
         for result in results:
-            if (
-                test.name == result.name
-                and test.serial_number == result.serial_number
-                and result.result in filter_results
-            ):
+            if test.name != result.name or test.serial_number != result.serial_number:
+                continue
+            data = build_filter_data(name=test.name, result=result.result)
+            if matches_filter(filter, data):
                 yield test
                 break
 
 
 def filter_recipe(
     input_path: Path,
-    filter_results: list[str],
+    filter: str,  # noqa: A002
     run_workdir: Optional[Path] = None,
     use_reportportal: bool = False,
 ) -> tmt.recipe.Recipe:
-    """Load a recipe and keep only tests matching the specified result outcomes."""
+    """
+    Load a recipe and keep only tests matching the fmf filter expression.
+
+    Results are taken from ReportPortal when ``use_reportportal`` is set and the
+    plan has a reportportal phase, otherwise from the plan's local results file.
+    """
     recipe = _load_recipe(input_path)
 
     filtered_plans = []
@@ -101,14 +108,14 @@ def filter_recipe(
         rp_phases = get_rp_phases(plan)
         if rp_phases and use_reportportal:
             plan.discover.tests = list(
-                filter_tests_from_rp(plan.discover.tests, rp_phases, filter_results)
+                filter_tests_from_rp(plan.discover.tests, rp_phases, filter)
             )
             plan.report.phases = edit_rp_phases(plan.report.phases)
         else:
             results = _load_results(
                 _resolve_results_path(plan, input_path, run_workdir), plan.name
             )
-            plan.discover.tests = list(_filter_tests(plan.discover.tests, results, filter_results))
+            plan.discover.tests = list(_filter_tests(plan.discover.tests, results, filter))
         filtered_plans.append(plan)
 
     recipe.plans = filtered_plans

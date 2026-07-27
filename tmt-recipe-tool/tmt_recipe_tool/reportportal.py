@@ -6,9 +6,9 @@ from typing import Union, cast
 import requests  # type: ignore[import-untyped]
 from tmt.recipe import _RecipePlan, _RecipeTest
 from tmt.steps import _RawStepData
-from tmt.steps.report.reportportal import ReportReportPortal
 from tmt.utils import retry_session
 
+from tmt_recipe_tool.filtering import build_filter_data, matches_filter
 from tmt_recipe_tool.models import ReportPortalPhase, ReportPortalResult
 from tmt_recipe_tool.utils import create_tmt_logger
 
@@ -19,11 +19,6 @@ STATUS_FORCELIST = (
     503,  # Service Unavailable
     504,  # Gateway Timeout
 )
-
-TMT_TO_RP_RESULT_STATUS = {
-    outcome.value: rp_status
-    for outcome, rp_status in ReportReportPortal.TMT_TO_RP_RESULT_STATUS.items()
-}
 
 
 class ReportPortalError(Exception):
@@ -120,13 +115,11 @@ def _fetch_rp_results(
 def filter_tests_from_rp(
     tests: list[_RecipeTest],
     rp_phases: list[ReportPortalPhase],
-    filter_results: list[str],
+    filter: str,  # noqa: A002
 ) -> Iterable[_RecipeTest]:
-    """Filter the tests from the ReportPortal results"""
-    filter_results = list(
-        {TMT_TO_RP_RESULT_STATUS.get(result, result) for result in filter_results}
-    )
-
+    """
+    Yield tests whose ReportPortal result matches the fmf filter expression.
+    """
     filtered_tests: dict[int, _RecipeTest] = {}
 
     for phase in rp_phases:
@@ -160,7 +153,12 @@ def filter_tests_from_rp(
                 result = rp_results.get(uuid, None)
                 if not result:
                     continue
-                if result.status in filter_results:
+                data = build_filter_data(
+                    name=test.name,
+                    result=result.status,
+                    defects=list(result.statistics.defects.keys()),
+                )
+                if matches_filter(filter, data):
                     filtered_tests[test.serial_number] = test
                     break
 

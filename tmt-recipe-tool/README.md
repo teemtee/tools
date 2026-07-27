@@ -1,8 +1,8 @@
 # tmt-recipe-tool
 
-A command-line tool for filtering and rerunning [tmt](https://tmt.readthedocs.io/) tests based on result outcomes.
+A command-line tool for filtering and rerunning [tmt](https://tmt.readthedocs.io/) tests based on result attributes.
 
-Given a [tmt recipe](https://tmt.readthedocs.io/en/stable/spec/recipe.html) and its associated test results, `tmt-recipe-tool` can produce a new recipe containing only the tests that matched specific outcomes (e.g. failed or errored tests), and optionally rerun them immediately.
+Given a [tmt recipe](https://tmt.readthedocs.io/en/stable/spec/recipe.html) and its associated test results, `tmt-recipe-tool` can produce a new recipe containing only the tests that match a filter expression, and optionally rerun them immediately.
 
 Results can be sourced either from a local tmt [results file](https://tmt.readthedocs.io/en/stable/spec/results.html) or from a [ReportPortal](https://tmt.readthedocs.io/en/stable/plugins/report.html#reportportal) instance when the recipe's report phase is configured with `how: reportportal`.
 
@@ -25,91 +25,105 @@ uv sync --group dev
 ## Usage
 
 ```
-tmt-recipe-tool [OPTIONS] COMMAND [ARGS]...
+tmt-recipe-tool [OPTIONS]
 ```
 
-### Global options
-
-| Option | Description |
-|--------|-------------|
-| `-i, --input PATH` | Path to the input recipe file |
-| `-o, --output PATH` | Path to save the modified recipe (if omitted, the recipe is not saved) |
-| `--run` | Rerun the modified recipe with tmt after processing |
-| `--feeling-safe` | Pass `--feeling-safe` to tmt, allowing potentially unsafe operations |
-| `--run-workdir PATH` | Path to the tmt run workdir, used as the base directory for resolving relative results paths |
-| `--version` | Show version and exit |
-
-### Commands
-
-#### `filter-tests`
-
-Filter recipe tests by their result outcome, keeping only those that match.
-
-```
-tmt-recipe-tool -i RECIPE filter-tests [--use-reportportal] [--result RESULT]...
-```
+### Options
 
 | Option | Default | Description |
 |--------|---------|-------------|
-| `--result RESULT` | `fail`, `error`, `warn` | Keep tests with this outcome (repeatable) |
+| `-i, --input PATH` | | Path to the input recipe file (required) |
+| `-o, --output PATH` | | Path to save the modified recipe (if omitted, the recipe is not saved) |
+| `-f, --filter EXPRESSION` | `result: fail, error, failed` | Keep tests matching this filter expression |
 | `--use-reportportal` | `false` | Fetch test results from ReportPortal instead of a local results file |
+| `--run` | | Rerun the modified recipe with tmt after processing |
+| `--feeling-safe` | | Pass `--feeling-safe` to tmt, allowing potentially unsafe operations |
+| `--run-workdir PATH` | | Path to the tmt run workdir, used as the base directory for resolving relative results paths |
+| `--version` | | Show version and exit |
+
+### Filter expression
+
+Filtering uses [fmf](https://fmf.readthedocs.io/en/stable/modules.html#fmf.filter) expression syntax internally. Matching is case-insensitive; values are regular expressions matched against the whole field.
+
+| Operator | Meaning |
+|----------|---------|
+| `&` | AND |
+| `\|` | OR |
+| `key: -value` | NOT |
+| `key: a, b` | OR within the same key (`key: a \| key: b`) |
+
+Parentheses are not supported. Use disjunctive normal form instead (`A & C \| B & C` for `(A \| B) & C`). Precedence is negation, then `&`, then `|`.
+
+Supported fields:
+
+| Field | Description |
+|-------|-------------|
+| `name` | Test name |
+| `result` | Result status (see below) |
+| `defect` | ReportPortal defect type (`product_bug`, `automation_bug`, `system_issue`, `no_defect`, `to_investigate`). Set to `none` for local results and for ReportPortal items with no defects. |
+
+### Result statuses
+
+Statuses are **not** mapped between sources. Use the values from the source you are filtering:
+
+| Source | `result` values |
+|--------|-----------------|
+| tmt results | `pass`, `fail`, `warn`, `error`, `info`, `skip`, `pending` |
+| ReportPortal results | `passed`, `failed`, `skipped` |
+
+The default filter includes both `fail`/`error` (tmt) and `failed` (ReportPortal) so it works with either source.
+
+### ReportPortal
 
 When `--use-reportportal` is used, results are fetched from any report phase in the recipe that has `how: reportportal`. The phase must include `launch-uuid` and `test-uuids` (populated automatically by the tmt [ReportPortal](https://tmt.readthedocs.io/en/stable/plugins/report/reportportal.html) plugin after a run finishes). The `launch-uuid` and `test-uuids` fields are stripped from the output recipe so that a subsequent run creates a new ReportPortal launch. Plans that do not have a `reportportal` report phase always fall back to their local `results.yaml` file, even when `--use-reportportal` is passed.
 
-Because ReportPortal only has three result statuses (`PASSED`, `FAILED`, `SKIPPED`), tmt outcomes are mapped before filtering:
-
-| tmt outcome | ReportPortal status |
-|-------------|---------------------|
-| `pass` | `PASSED` |
-| `fail` | `FAILED` |
-| `warn` | `FAILED` |
-| `error` | `FAILED` |
-| `info` | `SKIPPED` |
-| `skip` | `SKIPPED` |
-| `pending` | `SKIPPED` |
-
-As a result, `fail`, `warn`, and `error` are indistinguishable when filtering via ReportPortal, and all three will select tests with status `FAILED`. Similarly, `info`, `skip`, and `pending` will all select tests with status `SKIPPED`.
-
 ### Examples
 
-Filter a recipe to keep only failed and errored tests, saving the result:
+Filter a recipe with the default expression (failed and errored tests), saving the result:
 
 ```bash
-tmt-recipe-tool -i recipe.yaml -o filtered.yaml filter-tests
+tmt-recipe-tool -i recipe.yaml -o filtered.yaml
 ```
 
 Keep only tests that passed:
 
 ```bash
-tmt-recipe-tool -i recipe.yaml -o passed.yaml filter-tests --result pass
+tmt-recipe-tool -i recipe.yaml -o passed.yaml -f 'result: pass'
 ```
 
-Filter and immediately rerun the failing tests:
+Keep failed tests with a specific defect type (ReportPortal):
 
 ```bash
-tmt-recipe-tool -i recipe.yaml --run filter-tests
+tmt-recipe-tool -i recipe.yaml -o bugs.yaml --use-reportportal \
+  -f 'result: failed & defect: product_bug'
 ```
 
-Rerun with `--feeling-safe` to allow potentially unsafe tmt operations:
+Keep failed tests, or tests whose name matches a pattern:
 
 ```bash
-tmt-recipe-tool -i recipe.yaml --run --feeling-safe filter-tests
+tmt-recipe-tool -i recipe.yaml -o subset.yaml -f 'result: fail | name: .*/smoke.*'
 ```
 
-Combine multiple result filters:
+Filter and immediately rerun:
 
 ```bash
-tmt-recipe-tool -i recipe.yaml -o subset.yaml filter-tests --result fail --result error
+tmt-recipe-tool -i recipe.yaml --run
 ```
 
-Filter using ReportPortal results (requires the recipe to have a `reportportal` report phase with `launch-uuid` and `test-uuids`):
+Rerun with `--feeling-safe`:
 
 ```bash
-tmt-recipe-tool -i recipe.yaml -o filtered.yaml filter-tests --use-reportportal
+tmt-recipe-tool -i recipe.yaml --run --feeling-safe
 ```
 
-Fetch failures from ReportPortal and rerun them immediately:
+Filter using ReportPortal results:
 
 ```bash
-tmt-recipe-tool -i recipe.yaml --run filter-tests --use-reportportal --result fail
+tmt-recipe-tool -i recipe.yaml -o filtered.yaml --use-reportportal
+```
+
+Fetch failures from ReportPortal and rerun them:
+
+```bash
+tmt-recipe-tool -i recipe.yaml --run --use-reportportal -f 'result: failed'
 ```
