@@ -24,22 +24,7 @@ uv sync --group dev
 
 ## Usage
 
-```
-tmt-recipe-tool [OPTIONS]
-```
-
-### Options
-
-| Option | Default | Description |
-|--------|---------|-------------|
-| `-i, --input PATH` | | Path to the input recipe file (required) |
-| `-o, --output PATH` | | Path to save the modified recipe (if omitted, the recipe is not saved) |
-| `-f, --filter EXPRESSION` | `result: fail, error, failed` | Keep tests matching this filter expression |
-| `--use-reportportal` | `false` | Fetch test results from ReportPortal instead of a local results file |
-| `--run` | | Rerun the modified recipe with tmt after processing |
-| `--feeling-safe` | | Pass `--feeling-safe` to tmt, allowing potentially unsafe operations |
-| `--run-workdir PATH` | | Path to the tmt run workdir, used as the base directory for resolving relative results paths |
-| `--version` | | Show version and exit |
+Run `tmt-recipe-tool --help` for the full list of options.
 
 ### Filter expression
 

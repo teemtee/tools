@@ -7,7 +7,7 @@ import tmt.recipe
 import tmt.utils
 from pydantic import ValidationError
 
-from tmt_recipe_tool.filtering import build_filter_data, matches_filter
+from tmt_recipe_tool.filtering import matches_filter
 from tmt_recipe_tool.models import Result
 from tmt_recipe_tool.reportportal import edit_rp_phases, filter_tests_from_rp, get_rp_phases
 from tmt_recipe_tool.utils import create_tmt_logger, load_yaml
@@ -80,7 +80,11 @@ def _filter_tests(
         for result in results:
             if test.name != result.name or test.serial_number != result.serial_number:
                 continue
-            data = build_filter_data(name=test.name, result=result.result)
+            data = {
+                "name": test.name,
+                "result": result.result,
+                "defect": None,
+            }
             if matches_filter(filter, data):
                 yield test
                 break

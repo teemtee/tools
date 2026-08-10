@@ -63,6 +63,9 @@ ignore = [
     "UP007",    # X | Y for type annotations
 ]
 
+[tool.mypy]
+disable_error_code = ["import-untyped"]
+
 [dependency-groups]
 dev = [
     "ruff",

@@ -1,28 +1,15 @@
 from __future__ import annotations
 
-from typing import Any, Optional
+from typing import Any
 
-import fmf  # type: ignore[import-untyped]
-from fmf.utils import FilterError  # type: ignore[import-untyped]
+import fmf
+from fmf.utils import FilterError
 
 DEFAULT_FILTER = "result: fail, error, failed"
 
 
 class FilterExpressionError(Exception):
     """Raised when an fmf filter expression is invalid or cannot be evaluated."""
-
-
-def build_filter_data(
-    *,
-    name: Optional[str] = None,
-    result: Optional[str] = None,
-    defects: Optional[list[str]] = None,
-) -> dict[str, Any]:
-    return {
-        "name": name,
-        "result": result,
-        "defect": defects or None,
-    }
 
 
 def matches_filter(filter: str, data: dict[str, Any]) -> bool:  # noqa: A002

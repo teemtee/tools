@@ -3,12 +3,12 @@ from __future__ import annotations
 from collections.abc import Iterable
 from typing import Union, cast
 
-import requests  # type: ignore[import-untyped]
+import requests
 from tmt.recipe import _RecipePlan, _RecipeTest
 from tmt.steps import _RawStepData
 from tmt.utils import retry_session
 
-from tmt_recipe_tool.filtering import build_filter_data, matches_filter
+from tmt_recipe_tool.filtering import matches_filter
 from tmt_recipe_tool.models import ReportPortalPhase, ReportPortalResult
 from tmt_recipe_tool.utils import create_tmt_logger
 
@@ -153,11 +153,11 @@ def filter_tests_from_rp(
                 result = rp_results.get(uuid, None)
                 if not result:
                     continue
-                data = build_filter_data(
-                    name=test.name,
-                    result=result.status,
-                    defects=list(result.statistics.defects.keys()),
-                )
+                data = {
+                    "name": test.name,
+                    "result": result.status,
+                    "defect": list(result.statistics.defects.keys()) or None,
+                }
                 if matches_filter(filter, data):
                     filtered_tests[test.serial_number] = test
                     break
