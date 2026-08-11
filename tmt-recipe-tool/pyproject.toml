@@ -64,7 +64,18 @@ ignore = [
 ]
 
 [tool.mypy]
-disable_error_code = ["import-untyped"]
+strict = true
+implicit_reexport = true
+show_error_codes = true
+follow_imports = "normal"
+python_version = "3.9"
+
+[[tool.mypy.overrides]]
+module = [
+    "fmf.*",
+    "ruamel.*",
+]
+ignore_missing_imports = true
 
 [dependency-groups]
 dev = [

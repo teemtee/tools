@@ -10,7 +10,12 @@ repos:
     rev: v1.15.0
     hooks:
       - id: mypy
+        name: mypy (tmt-recipe-tool)
+        files: ^tmt-recipe-tool/
+        language_version: python3.9
+        args: [--config-file=tmt-recipe-tool/pyproject.toml]
         additional_dependencies:
           - click>=8.0.3
           - ruamel.yaml>=0.16.6
           - tmt>=1.72
+          - types-requests

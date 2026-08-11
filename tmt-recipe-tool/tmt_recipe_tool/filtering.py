@@ -20,6 +20,6 @@ def matches_filter(filter: str, data: dict[str, Any]) -> bool:  # noqa: A002
     as regular expressions (full match).
     """
     try:
-        return fmf.filter(filter, data, sensitive=False, regexp=True, name=None)
+        return bool(fmf.filter(filter, data, sensitive=False, regexp=True, name=None))
     except FilterError as exc:
         raise FilterExpressionError(f"Invalid filter expression {filter!r}.") from exc
