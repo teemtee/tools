@@ -4,13 +4,12 @@ from typing import Any, Optional
 
 import click
 
+from tmt_recipe_tool.filtering import DEFAULT_FILTER
 from tmt_recipe_tool.recipe import _save_recipe, filter_recipe
 from tmt_recipe_tool.utils import run_tmt_recipe
 
-DEFAULT_TEST_FILTER_RESULTS = ["fail", "error", "warn"]
 
-
-@click.group(invoke_without_command=False, no_args_is_help=True)
+@click.command(no_args_is_help=True)
 @click.version_option(package_name="tmt-recipe-tool")
 @click.option(
     "-i",
@@ -29,6 +28,21 @@ DEFAULT_TEST_FILTER_RESULTS = ["fail", "error", "warn"]
     help=(
         "Path to the output recipe file. If not specified, the modified recipe will not be saved."
     ),
+)
+@click.option(
+    "-f",
+    "--filter",
+    metavar="EXPRESSION",
+    type=str,
+    default=DEFAULT_FILTER,
+    show_default=True,
+    help="Keep tests matching this fmf filter expression. Available keys: name, result, defect.",
+)
+@click.option(
+    "--use-reportportal",
+    is_flag=True,
+    default=False,
+    help="Fetch test results from ReportPortal instead of a local results file.",
 )
 @click.option(
     "--run",
@@ -54,61 +68,23 @@ DEFAULT_TEST_FILTER_RESULTS = ["fail", "error", "warn"]
         "relative results paths."
     ),
 )
-@click.pass_context
 def main(
-    ctx: click.Context,
     input: Path,  # noqa: A002
     output: Optional[Path],
+    filter: str,  # noqa: A002
+    use_reportportal: bool,
     run: bool,
     feeling_safe: bool,
     run_workdir: Optional[Path],
     **kwargs: Any,
 ) -> None:
-    """tmt-recipe-tool - Filter and rerun tmt recipes based on test result outcomes."""
-    ctx.ensure_object(dict)
-
-
-@main.command()
-@click.option(
-    "--result",
-    "results",
-    metavar="RESULT",
-    multiple=True,
-    show_default=True,
-    default=DEFAULT_TEST_FILTER_RESULTS,
-    help=(
-        "Keep only the tests that have the specified result outcome. "
-        "Can be specified multiple times."
-    ),
-)
-@click.option(
-    "--use-reportportal",
-    is_flag=True,
-    default=False,
-    help="Fetch test results from ReportPortal instead of a local results file.",
-)
-@click.pass_context
-def filter_tests(
-    ctx: click.Context, results: list[str], use_reportportal: bool, **kwargs: Any
-) -> None:
-    """Filter recipe tests by their result outcome."""
-    assert ctx.parent is not None
-
-    ctx.obj["recipe"] = filter_recipe(
-        ctx.parent.params["input"],
-        results,
-        run_workdir=ctx.parent.params.get("run_workdir"),
+    """tmt-recipe-tool - Filter and optionally rerun a tmt recipe using a filter expression."""
+    recipe = filter_recipe(
+        input,
+        filter,
+        run_workdir=run_workdir,
         use_reportportal=use_reportportal,
     )
-
-
-@main.result_callback()
-@click.pass_context
-def post_action(ctx, *args, **kwargs):
-    """Save and optionally run the modified recipe after a subcommand completes."""
-    recipe = ctx.obj.get("recipe", None)
-    if not recipe:
-        return
 
     empty_plans = [p.name for p in recipe.plans if not p.discover.tests]
     if empty_plans:
@@ -117,15 +93,13 @@ def post_action(ctx, *args, **kwargs):
             err=True,
         )
 
-    output = ctx.params.get("output", None)
     if output:
         _save_recipe(recipe, output)
         print(f"Modified recipe saved to: '{output}'")
     else:
         print("No output path provided, the modified recipe will not be saved.")
 
-    if ctx.params.get("run", False):
-        feeling_safe = ctx.params.get("feeling_safe", False)
+    if run:
         if not output:
             with tempfile.TemporaryDirectory(prefix="tmt_recipe_tool_") as tmp:
                 output = Path(tmp) / "recipe.yaml"
@@ -138,4 +112,4 @@ def post_action(ctx, *args, **kwargs):
             "Warning: None of the plans have any tests after filtering.",
             err=True,
         )
-        ctx.exit(3)
+        raise SystemExit(3)

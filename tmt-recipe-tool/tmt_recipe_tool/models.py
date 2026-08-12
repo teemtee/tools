@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Literal, Optional
+from typing import Any, Literal, Optional
 
 from pydantic import BaseModel, Field
 
@@ -20,10 +20,17 @@ class ReportPortalPhase(BaseModel, extra="allow"):
     launch_uuid: Optional[str] = Field(None, alias="launch-uuid")
     launch_url: Optional[str] = Field(None, alias="launch-url")
     ssl_verify: bool = Field(True, alias="ssl-verify")
-    test_uuids: dict[int, dict[Optional[str], str]] = Field(default_factory=dict, alias="test-uuids")
+    test_uuids: dict[int, dict[Optional[str], str]] = Field(
+        default_factory=dict, alias="test-uuids"
+    )
     api_version: str = Field(alias="api-version")
+
+
+class RPResultStatistics(BaseModel, extra="allow"):
+    defects: dict[str, Any]
 
 
 class ReportPortalResult(BaseModel, extra="allow"):
     uuid: str
     status: str
+    statistics: RPResultStatistics
